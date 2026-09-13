@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Tier upgrade review console — prototype</title>
+<style>
+  :root{
+    --ink:#12203A; --ink-soft:#3A4A63; --line:#DDE2EA; --line-soft:#EEF1F5;
+    --bg:#F5F6F8; --panel:#FFFFFF; --sidebar:#0F1E33;
+    --sidebar-line:rgba(255,255,255,0.10); --sidebar-text:#C6CEDC; --sidebar-text-dim:#7C8AA3;
+    --accent:#0E6E62; --accent-bg:#E4F2EF; --accent-line:#B7DED6;
+    --good:#1B7A4D; --good-bg:#E7F5EC; --good-line:#B9E2C8;
+    --warn:#9A5B0B; --warn-bg:#FBF0DE; --warn-line:#F0D4A0;
+    --bad:#B32424; --bad-bg:#FBEAEA; --bad-line:#F0BCBC;
+    --mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+    --sans: 'IBM Plex Sans', -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;font-family:var(--sans);background:var(--bg);color:var(--ink);}
+  .app{display:flex;min-height:100vh;}
+  .sidebar{width:250px;flex-shrink:0;background:var(--sidebar);color:var(--sidebar-text);display:flex;flex-direction:column;}
+  .brand{padding:22px 20px 16px;border-bottom:1px solid var(--sidebar-line);}
+  .brand-name{font-size:14px;font-weight:600;color:#fff;letter-spacing:.2px;}
+  .brand-sub{font-size:11.5px;color:var(--sidebar-text-dim);margin-top:3px;}
+  .role-switch{display:flex;gap:6px;margin:16px 16px 4px;background:rgba(255,255,255,0.06);border-radius:8px;padding:3px;}
+  .role-btn{flex:1;border:none;background:transparent;color:var(--sidebar-text-dim);font-size:12.5px;font-weight:600;padding:8px 6px;border-radius:6px;cursor:pointer;font-family:var(--sans);}
+  .role-btn.active{background:#fff;color:var(--ink);}
+  .queue-label{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--sidebar-text-dim);padding:18px 20px 8px;}
+  .queue{flex:1;overflow-y:auto;padding:0 10px 10px;}
+  .qcard{padding:11px 10px;border-radius:8px;cursor:pointer;margin-bottom:4px;border:1px solid transparent;}
+  .qcard:hover{background:rgba(255,255,255,0.05);}
+  .qcard.active{background:rgba(255,255,255,0.09);border-color:rgba(255,255,255,0.14);}
+  .qcard-top{display:flex;justify-content:space-between;align-items:baseline;}
+  .qcard-name{font-size:13px;font-weight:600;color:#fff;}
+  .qcard-time{font-size:10.5px;color:var(--sidebar-text-dim);}
+  .qcard-meta{font-size:11.5px;color:var(--sidebar-text-dim);margin-top:2px;}
+  .qpill{display:inline-block;margin-top:6px;font-size:10.5px;font-weight:600;padding:2px 7px;border-radius:5px;}
+  .qpill.clear{background:rgba(27,122,77,0.22);color:#8CDBAE;}
+  .qpill.review{background:rgba(154,91,11,0.25);color:#F0C070;}
+  .qpill.risk{background:rgba(179,36,36,0.25);color:#F3A0A0;}
+  .qpill.done{background:rgba(255,255,255,0.10);color:var(--sidebar-text-dim);}
+  .stat-strip{padding:14px 20px;border-top:1px solid var(--sidebar-line);font-size:11.5px;color:var(--sidebar-text-dim);}
+  .stat-strip b{color:#fff;font-weight:600;}
+  .main{flex:1;min-width:0;padding:26px 34px 60px;overflow-y:auto;}
+  .topline{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:18px;}
+  .cust-name{font-size:20px;font-weight:600;margin:0;}
+  .cust-sub{font-size:13px;color:var(--ink-soft);margin-top:3px;}
+  .req-badge{font-size:12px;font-weight:600;padding:5px 10px;border-radius:6px;background:var(--accent-bg);color:var(--accent);border:1px solid var(--accent-line);}
+  .ai-banner{display:flex;align-items:flex-start;gap:12px;padding:14px 16px;border-radius:10px;margin-bottom:22px;border:1px solid;}
+  .ai-banner.clear{background:var(--good-bg);border-color:var(--good-line);}
+  .ai-banner.review{background:var(--warn-bg);border-color:var(--warn-line);}
+  .ai-banner.risk{background:var(--bad-bg);border-color:var(--bad-line);}
+  .ai-dot{width:9px;height:9px;border-radius:50%;margin-top:5px;flex-shrink:0;}
+  .ai-dot.clear{background:var(--good);} .ai-dot.review{background:var(--warn);} .ai-dot.risk{background:var(--bad);}
+  .ai-banner-title{font-size:13.5px;font-weight:600;}
+  .ai-banner.clear .ai-banner-title{color:var(--good);}
+  .ai-banner.review .ai-banner-title{color:var(--warn);}
+  .ai-banner.risk .ai-banner-title{color:var(--bad);}
+  .ai-banner-body{font-size:13px;color:var(--ink-soft);margin-top:3px;line-height:1.5;}
+  .ai-banner-time{font-size:11.5px;color:var(--ink-soft);margin-top:6px;font-family:var(--mono);}
+  .checks{display:flex;flex-direction:column;gap:12px;margin-bottom:24px;}
+  .check{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px 18px;}
+  .check-head{display:flex;justify-content:space-between;align-items:center;cursor:pointer;}
+  .check-title{font-size:14px;font-weight:600;}
+  .check-title-sub{font-size:12px;color:var(--ink-soft);margin-top:2px;font-weight:400;}
+  .check-right{display:flex;align-items:center;gap:10px;}
+  .conf{font-family:var(--mono);font-size:12.5px;font-weight:600;}
+  .verdict{font-size:11.5px;font-weight:600;padding:3px 9px;border-radius:12px;}
+  .verdict.clear{background:var(--good-bg);color:var(--good);}
+  .verdict.review{background:var(--warn-bg);color:var(--warn);}
+  .verdict.risk{background:var(--bad-bg);color:var(--bad);}
+  .chev{font-size:11px;color:var(--ink-soft);transition:transform .15s;}
+  .check.open .chev{transform:rotate(180deg);}
+  .check-detail{display:none;margin-top:14px;padding-top:14px;border-top:1px solid var(--line-soft);font-size:12.5px;color:var(--ink-soft);line-height:1.65;}
+  .check.open .check-detail{display:block;}
+  .kv-row{display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px dashed var(--line-soft);}
+  .kv-row:last-of-type{border-bottom:none;}
+  .kv-k{color:var(--ink-soft);}
+  .kv-v{font-family:var(--mono);color:var(--ink);text-align:right;}
+  .evidence-note{margin-top:10px;padding:10px 12px;background:var(--bg);border-radius:8px;font-size:12.5px;color:var(--ink-soft);}
+  .actions{display:flex;gap:10px;padding-top:6px;flex-wrap:wrap;}
+  .btn{font-family:var(--sans);font-size:13px;font-weight:600;padding:10px 18px;border-radius:8px;border:1px solid var(--line);background:#fff;color:var(--ink);cursor:pointer;}
+  .btn:hover{border-color:#c7ccd6;}
+  .btn.primary{background:var(--ink);color:#fff;border-color:var(--ink);}
+  .btn.danger{color:var(--bad);border-color:var(--bad-line);}
+  .btn.danger:hover{background:var(--bad-bg);}
+  .btn.ghost{color:var(--ink-soft);}
+  .done-panel{padding:40px 10px;text-align:center;color:var(--ink-soft);}
+  .done-panel .big{font-size:16px;font-weight:600;color:var(--ink);margin-bottom:6px;}
+  .empty{padding:60px 10px;text-align:center;color:var(--ink-soft);font-size:14px;}
+  .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--ink);color:#fff;font-size:13px;font-weight:500;padding:11px 20px;border-radius:8px;opacity:0;pointer-events:none;transition:opacity .2s, transform .2s;}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(-6px);}
+  .doc-gallery{display:flex;gap:10px;margin-top:12px;flex-wrap:wrap;}
+  .doc-thumb{width:120px;cursor:pointer;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:#fff;}
+  .doc-thumb:hover{border-color:#b7bdc9;}
+  .doc-thumb svg{display:block;width:100%;height:80px;}
+  .doc-thumb-label{font-size:10.5px;color:var(--ink-soft);padding:5px 7px;border-top:1px solid var(--line-soft);}
+  .lightbox{position:fixed;inset:0;background:rgba(15,20,30,0.66);display:none;align-items:center;justify-content:center;z-index:50;padding:30px;}
+  .lightbox.show{display:flex;}
+  .lightbox-card{background:#fff;border-radius:12px;max-width:460px;width:100%;overflow:hidden;}
+  .lightbox-img{width:100%;height:300px;}
+  .lightbox-img svg{width:100%;height:100%;display:block;}
+  .lightbox-foot{padding:14px 18px;display:flex;justify-content:space-between;align-items:center;}
+  .lightbox-title{font-size:13px;font-weight:600;}
+  .lightbox-close{border:none;background:var(--bg);width:28px;height:28px;border-radius:50%;cursor:pointer;font-size:14px;color:var(--ink-soft);}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="sidebar">
+    <div class="brand">
+      <div class="brand-name">Tier upgrade console</div>
+      <div class="brand-sub">Compliance &amp; ops — prototype</div>
+    </div>
+    <div class="role-switch">
+      <button class="role-btn active" id="btn-reviewer">Reviewer</button>
+      <button class="role-btn" id="btn-authorizer">Authorizer</button>
+    </div>
+    <div class="queue-label" id="queue-label">Reviewer queue</div>
+    <div class="queue" id="queue"></div>
+    <div class="stat-strip" id="stat-strip"></div>
+  </div>
+  <div class="main" id="main"></div>
+</div>
+<div class="toast" id="toast"></div>
+<div class="lightbox" id="lightbox" onclick="if(event.target===this) closeLightbox()">
+  <div class="lightbox-card">
+    <div class="lightbox-img" id="lightbox-img"></div>
+    <div class="lightbox-foot">
+      <span class="lightbox-title" id="lightbox-title"></span>
+      <button class="lightbox-close" onclick="closeLightbox()" aria-label="Close">&#10005;</button>
+    </div>
+  </div>
+</div>
+
+<script>
+function faceGlyph(cx,cy,r,fill){
+  return `<circle cx="${cx}" cy="${cy-r*0.15}" r="${r*0.62}" fill="${fill}"/>
+    <path d="M ${cx-r} ${cy+r*1.5} Q ${cx-r} ${cy+r*0.25} ${cx} ${cy+r*0.25} Q ${cx+r} ${cy+r*0.25} ${cx+r} ${cy+r*1.5} Z" fill="${fill}"/>`;
+}
+function idCardSVG(o){
+  return `<svg viewBox="0 0 240 160" xmlns="http://www.w3.org/2000/svg">
+    <rect width="240" height="160" fill="${o.bg}"/>
+    <rect x="0" y="0" width="240" height="26" fill="${o.dark}"/>
+    <text x="12" y="17" font-family="Arial" font-size="10" fill="#fff" font-weight="bold">${o.header}</text>
+    <rect x="14" y="40" width="62" height="76" rx="4" fill="#fff" stroke="${o.dark}" stroke-width="1.5"/>
+    ${faceGlyph(45,72,17,o.mid)}
+    <text x="90" y="52" font-family="Arial" font-size="9" fill="${o.dark}">Name</text>
+    <text x="90" y="65" font-family="Arial" font-size="10.5" font-weight="bold" fill="#20242c">${o.name}</text>
+    <text x="90" y="83" font-family="Arial" font-size="9" fill="${o.dark}">${o.idLabel}</text>
+    <text x="90" y="96" font-family="Arial" font-size="10" fill="#20242c">${o.idValue}</text>
+    <text x="90" y="114" font-family="Arial" font-size="8.5" fill="${o.dark}">${o.extraLabel}</text>
+    <text x="90" y="126" font-family="Arial" font-size="9.5" fill="#20242c">${o.extraValue}</text>
+    <rect x="0" y="146" width="240" height="14" fill="${o.dark}" opacity="0.12"/>
+  </svg>`;
+}
+function billSVG(o){
+  return `<svg viewBox="0 0 240 160" xmlns="http://www.w3.org/2000/svg">
+    <rect width="240" height="160" fill="#fff"/>
+    <rect x="0" y="0" width="240" height="30" fill="#EEF1F5"/>
+    <text x="12" y="19" font-family="Arial" font-size="10.5" font-weight="bold" fill="#12203A">${o.issuer}</text>
+    <text x="228" y="19" text-anchor="end" font-family="Arial" font-size="8.5" fill="#5b6472">${o.date}</text>
+    <text x="12" y="48" font-family="Arial" font-size="8.5" fill="#5b6472">Account name</text>
+    <text x="12" y="60" font-family="Arial" font-size="10" fill="#20242c" font-weight="bold">${o.name}</text>
+    <text x="12" y="80" font-family="Arial" font-size="8.5" fill="#5b6472">Service address</text>
+    <text x="12" y="92" font-family="Arial" font-size="9.5" fill="#20242c">${o.address}</text>
+    <line x1="12" y1="108" x2="228" y2="108" stroke="#DDE2EA" stroke-width="1"/>
+    <text x="12" y="126" font-family="Arial" font-size="8.5" fill="#5b6472">Amount due</text>
+    <text x="228" y="126" text-anchor="end" font-family="Arial" font-size="10" fill="#20242c">${o.amount}</text>
+    <rect x="12" y="138" width="90" height="10" fill="#20242c" opacity="0.75"/>
+  </svg>`;
+}
+function agentPhotoSVG(o){
+  const flagColor = o.consistent ? '#1B7A4D' : '#9A5B0B';
+  const flagText = o.consistent ? 'Match' : 'Check';
+  return `<svg viewBox="0 0 240 160" xmlns="http://www.w3.org/2000/svg">
+    <rect width="240" height="100" fill="#BFD8E8"/>
+    <rect y="100" width="240" height="60" fill="#7C8A6E"/>
+    <rect x="60" y="46" width="120" height="70" fill="${o.wallColor}"/>
+    <polygon points="55,46 120,16 185,46" fill="${o.roofColor}"/>
+    <rect x="95" y="72" width="26" height="44" fill="#5b4636"/>
+    <rect x="132" y="60" width="22" height="22" fill="#EAF3F8" stroke="#5b6472" stroke-width="1"/>
+    <circle cx="180" cy="30" r="14" fill="#F5D67B"/>
+    <path d="M120 4 L126 20 L114 20 Z" fill="#B32424"/>
+    <circle cx="120" cy="20" r="4" fill="#B32424"/>
+    <rect x="6" y="6" width="60" height="16" rx="3" fill="${flagColor}"/>
+    <text x="36" y="17" text-anchor="middle" font-family="Arial" font-size="9" font-weight="bold" fill="#fff">${flagText}</text>
+  </svg>`;
+}
+function selfieCompareSVG(o){
+  const barColor = o.score>=0.85 ? '#1B7A4D' : o.score>=0.6 ? '#9A5B0B' : '#B32424';
+  return `<svg viewBox="0 0 240 160" xmlns="http://www.w3.org/2000/svg">
+    <rect width="240" height="160" fill="#fff"/>
+    <rect x="10" y="10" width="100" height="100" rx="6" fill="#EEF1F5"/>
+    ${faceGlyph(60,62,26,'#8C96A6')}
+    <text x="60" y="126" text-anchor="middle" font-family="Arial" font-size="8.5" fill="#5b6472">Onboarding selfie</text>
+    <rect x="130" y="10" width="100" height="100" rx="6" fill="#EEF1F5"/>
+    ${faceGlyph(180,62,26,'#8C96A6')}
+    <text x="180" y="126" text-anchor="middle" font-family="Arial" font-size="8.5" fill="#5b6472">${o.sourceLabel}</text>
+    <rect x="10" y="140" width="220" height="8" rx="4" fill="#EEF1F5"/>
+    <rect x="10" y="140" width="${220*o.score}" height="8" rx="4" fill="${barColor}"/>
+  </svg>`;
+}
+const SCHEME = {
+  nin:{header:'NIMC — National ID', bg:'#E7F5EC', dark:'#1B7A4D', mid:'#8FCBA6', idLabel:'NIN'},
+  license:{header:"FRSC — Driver's licence", bg:'#E6F1FB', dark:'#185FA5', mid:'#8FB6DE', idLabel:'Licence no.'},
+  passport:{header:'NIS — International passport', bg:'#F0EAFB', dark:'#534AB7', mid:'#B0A6DE', idLabel:'Passport no.'},
+  voter:{header:"INEC — Permanent voter's card", bg:'#FBF0DE', dark:'#9A5B0B', mid:'#E3BE7E', idLabel:'VIN'}
+};
+
+const CASES = [
+  {
+    id:'c1', name:'Ifeoma Adeyemi', phone:'0803 412 9021', requested:'Tier 1 → Tier 3',
+    submitted:'2h ago', aiTime:'38 sec', status:'pending_review',
+    overall:'clear', overallNote:'All three checks matched official sources with high confidence. No discrepancies found.',
+    checks:[
+      {key:'id', title:'Identity document', sub:'National ID (NIN)', verdict:'clear', confidence:98,
+       detail:[['Document type','National ID — NIMC'],['NIN provided','••••••4471'],['Portal checked','NIMC verification portal'],['Name match','Ifeoma Chidinma Adeyemi — exact match'],['Photo match','Match, 0.97 similarity'],['Document status','Active, not reported lost/stolen']],
+       note:'NIMC portal returned a verified record with a face-match score of 0.97 against the customer selfie on file.',
+       images:[{label:'National ID (NIN)', svg:idCardSVG({...SCHEME.nin, name:'Ifeoma C. Adeyemi', idValue:'••••••4471', extraLabel:'Status', extraValue:'Active'})}]},
+      {key:'address', title:'Proof of address', sub:'Electricity bill + agent visit', verdict:'clear', confidence:94,
+       detail:[['Bill type','Ikeja Electric — dated 11 days ago'],['Billing name','Ifeoma Adeyemi — exact match'],['Address on bill','14 Alausa Close, Ikeja, Lagos'],['Agent visit status','Completed — habitable, occupied'],['Agent photo vs bill address','Consistent']],
+       note:'Field agent photo shows a residential building matching the street signage in the submitted bill. Bill is within the 6-month window.',
+       images:[{label:'Electricity bill', svg:billSVG({issuer:'Ikeja Electric', date:'11 days ago', name:'Ifeoma Adeyemi', address:'14 Alausa Close, Ikeja, Lagos', amount:'₦8,420'})},
+               {label:'Agent site visit', svg:agentPhotoSVG({wallColor:'#E4DCC8', roofColor:'#8B5E3C', consistent:true})}]},
+      {key:'bvn', title:'BVN & selfie match', sub:'NIBSS verification', verdict:'clear', confidence:99,
+       detail:[['BVN provided','••••••••1187'],['Portal checked','NIBSS BVN portal'],['Name on BVN','Ifeoma Chidinma Adeyemi'],['Selfie match','0.99 similarity'],['BVN status','Active, unique']],
+       note:'BVN record name and onboarding selfie both matched the submitted identity document with very high confidence.',
+       images:[{label:'Selfie vs BVN record', svg:selfieCompareSVG({sourceLabel:'NIBSS BVN photo', score:0.99})}]}
+    ]
+  },
+  {
+    id:'c2', name:'Tunde Bakare', phone:'0812 774 5502', requested:'Tier 1 → Tier 3',
+    submitted:'40 min ago', aiTime:'51 sec', status:'pending_review',
+    overall:'review', overallNote:'Two checks cleared. The proof-of-address agent photo does not clearly match the street named on the submitted bill — recommend manual look before proceeding.',
+    checks:[
+      {key:'id', title:'Identity document', sub:"Driver's licence", verdict:'clear', confidence:95,
+       detail:[['Document type',"Driver's licence — FRSC"],['Licence number','FRS-••••221'],['Portal checked','FRSC licence verification portal'],['Name match','Tunde Olamide Bakare — exact match'],['Photo match','Match, 0.95 similarity'],['Expiry','Valid until 2029']],
+       note:'FRSC portal confirmed an active licence record with a strong photo match.',
+       images:[{label:"Driver's licence", svg:idCardSVG({...SCHEME.license, name:'Tunde O. Bakare', idValue:'FRS-••••221', extraLabel:'Expiry', extraValue:'2029'})}]},
+      {key:'address', title:'Proof of address', sub:'Waste disposal bill + agent visit', verdict:'review', confidence:61,
+       detail:[['Bill type','LAWMA waste disposal bill — dated 2 months ago'],['Billing name','Tunde Bakare — match'],['Address on bill','9 Freedom Way, Lekki Phase 1'],['Agent visit status','Completed'],['Agent photo vs bill address','Street signage not visible in photo; building style inconsistent with Lekki Phase 1 layout']],
+       note:'The agent uploaded a photo of a gate and building frontage, but no visible street sign or house number confirming "Freedom Way." Confidence is lowered until this is corroborated.',
+       images:[{label:'Waste disposal bill', svg:billSVG({issuer:'LAWMA', date:'2 months ago', name:'Tunde Bakare', address:'9 Freedom Way, Lekki Phase 1', amount:'₦3,000'})},
+               {label:'Agent site visit', svg:agentPhotoSVG({wallColor:'#D7C9A8', roofColor:'#6B4A2E', consistent:false})}]},
+      {key:'bvn', title:'BVN & selfie match', sub:'NIBSS verification', verdict:'clear', confidence:97,
+       detail:[['BVN provided','••••••••4453'],['Portal checked','NIBSS BVN portal'],['Name on BVN','Tunde Olamide Bakare'],['Selfie match','0.96 similarity'],['BVN status','Active, unique']],
+       note:'BVN and selfie both matched cleanly.',
+       images:[{label:'Selfie vs BVN record', svg:selfieCompareSVG({sourceLabel:'NIBSS BVN photo', score:0.96})}]}
+    ]
+  },
+  {
+    id:'c3', name:'Grace Okonkwo', phone:'0705 990 3312', requested:'Tier 1 → Tier 3',
+    submitted:'3h ago', aiTime:'44 sec', status:'pending_review',
+    overall:'risk', overallNote:'Identity document could not be verified against the issuing portal. Recommend rejecting or requesting a re-upload before this proceeds further.',
+    checks:[
+      {key:'id', title:'Identity document', sub:'International passport', verdict:'risk', confidence:22,
+       detail:[['Document type','International passport — NIS'],['Passport number','A0••••••2'],['Portal checked','Nigeria Immigration Service portal'],['Lookup result','No matching record returned'],['Photo quality','Acceptable, but unverifiable without a portal match']],
+       note:'The passport number returned no record on the Immigration portal after two lookup attempts. This does not confirm forgery, but the document cannot be authenticated as submitted.',
+       images:[{label:'International passport', svg:idCardSVG({...SCHEME.passport, name:'Grace C. Okonkwo', idValue:'A0••••••2', extraLabel:'Lookup result', extraValue:'No record found'})}]},
+      {key:'address', title:'Proof of address', sub:'Electricity bill + agent visit', verdict:'clear', confidence:90,
+       detail:[['Bill type','Eko Electric — dated 20 days ago'],['Billing name','Grace Okonkwo — match'],['Address on bill','22 Marina Road, Lagos Island'],['Agent visit status','Completed — habitable, occupied'],['Agent photo vs bill address','Consistent']],
+       note:'Agent photo and bill address are consistent.',
+       images:[{label:'Electricity bill', svg:billSVG({issuer:'Eko Electric', date:'20 days ago', name:'Grace Okonkwo', address:'22 Marina Road, Lagos Island', amount:'₦11,150'})},
+               {label:'Agent site visit', svg:agentPhotoSVG({wallColor:'#DCD3C3', roofColor:'#7A5236', consistent:true})}]},
+      {key:'bvn', title:'BVN & selfie match', sub:'NIBSS verification', verdict:'clear', confidence:93,
+       detail:[['BVN provided','••••••••7790'],['Portal checked','NIBSS BVN portal'],['Name on BVN','Grace Chiamaka Okonkwo'],['Selfie match','0.93 similarity'],['BVN status','Active, unique']],
+       note:'BVN and selfie matched, but this alone cannot substitute for a verified primary ID.',
+       images:[{label:'Selfie vs BVN record', svg:selfieCompareSVG({sourceLabel:'NIBSS BVN photo', score:0.93})}]}
+    ]
+  },
+  {
+    id:'c4', name:'Emeka Nwosu', phone:'0906 221 8834', requested:'Tier 1 → Tier 3',
+    submitted:'6h ago', aiTime:'46 sec', status:'pending_authorization', reviewedBy:'Reviewer — Amaka S.',
+    overall:'clear', overallNote:'All checks cleared. Approved by reviewer, awaiting final authorization.',
+    checks:[
+      {key:'id', title:'Identity document', sub:'Permanent voter\'s card', verdict:'clear', confidence:96,
+       detail:[['Document type',"Permanent voter's card — INEC"],['VIN provided','90••••••••••41'],['Portal checked','INEC verification portal'],['Name match','Emeka Nwosu — exact match'],['Photo match','Match, 0.96 similarity']],
+       note:'INEC portal confirmed a valid, active voter record.',
+       images:[{label:"Voter's card", svg:idCardSVG({...SCHEME.voter, name:'Emeka Nwosu', idValue:'90•••41', extraLabel:'Status', extraValue:'Active'})}]},
+      {key:'address', title:'Proof of address', sub:'Electricity bill + agent visit', verdict:'clear', confidence:92,
+       detail:[['Bill type','Abuja Electricity Distribution Co. — dated 1 month ago'],['Billing name','Emeka Nwosu — match'],['Address on bill','5 Aso Drive, Maitama, Abuja'],['Agent visit status','Completed — habitable, occupied']],
+       note:'Bill and agent visit are consistent.',
+       images:[{label:'Electricity bill', svg:billSVG({issuer:'Abuja Electricity Distribution Co.', date:'1 month ago', name:'Emeka Nwosu', address:'5 Aso Drive, Maitama, Abuja', amount:'₦14,300'})},
+               {label:'Agent site visit', svg:agentPhotoSVG({wallColor:'#E8E2D4', roofColor:'#8B6A45', consistent:true})}]},
+      {key:'bvn', title:'BVN & selfie match', sub:'NIBSS verification', verdict:'clear', confidence:97,
+       detail:[['BVN provided','••••••••3302'],['Portal checked','NIBSS BVN portal'],['Name on BVN','Emeka Chukwuebuka Nwosu'],['Selfie match','0.97 similarity']],
+       note:'BVN and selfie matched cleanly.',
+       images:[{label:'Selfie vs BVN record', svg:selfieCompareSVG({sourceLabel:'NIBSS BVN photo', score:0.97})}]}
+    ]
+  }
+];
+
+let role = 'reviewer';
+let selectedId = null;
+let openChecks = {};
+
+function verdictLabel(v){ return v==='clear' ? 'Verified' : v==='review' ? 'Needs a look' : 'Not verified'; }
+function overallLabel(v){ return v==='clear' ? 'AI recommends approval' : v==='review' ? 'AI recommends manual review' : 'AI flags this application'; }
+
+function visibleCases(){
+  if(role==='reviewer') return CASES.filter(c=>c.status==='pending_review');
+  return CASES.filter(c=>c.status==='pending_authorization');
+}
+
+function renderQueue(){
+  document.getElementById('queue-label').textContent = role==='reviewer' ? 'Reviewer queue' : 'Authorizer queue';
+  const list = visibleCases();
+  const q = document.getElementById('queue');
+  if(list.length===0){
+    q.innerHTML = '<div style="padding:20px 10px;color:var(--sidebar-text-dim);font-size:12.5px;">Queue is empty.</div>';
+  } else {
+    q.innerHTML = list.map(c=>{
+      const pillClass = c.overall;
+      return `<div class="qcard ${c.id===selectedId?'active':''}" onclick="selectCase('${c.id}')">
+        <div class="qcard-top"><span class="qcard-name">${c.name}</span><span class="qcard-time">${c.submitted}</span></div>
+        <div class="qcard-meta">${c.requested}</div>
+        <span class="qpill ${pillClass}">${overallShort(c.overall)}</span>
+      </div>`;
+    }).join('');
+  }
+  const done = CASES.filter(c=>c.status==='approved'||c.status==='rejected');
+  const stat = document.getElementById('stat-strip');
+  stat.innerHTML = `<b>${done.length}</b> resolved today &middot; avg AI check time <b>~45 sec</b> vs <b>52 hrs</b> manual baseline`;
+  if(!selectedId && list.length){ selectedId = list[0].id; }
+}
+
+function overallShort(v){ return v==='clear'?'Auto-clear':v==='review'?'Needs review':'High risk'; }
+
+function selectCase(id){
+  selectedId = id;
+  openChecks = {};
+  renderQueue();
+  renderMain();
+}
+
+function switchRole(r){
+  role = r;
+  selectedId = null;
+  document.getElementById('btn-reviewer').classList.toggle('active', r==='reviewer');
+  document.getElementById('btn-authorizer').classList.toggle('active', r==='authorizer');
+  renderQueue();
+  renderMain();
+}
+
+function toggleCheck(key){
+  openChecks[key] = !openChecks[key];
+  renderMain();
+}
+
+function openLightbox(caseId, checkKey, imgIndex){
+  const c = CASES.find(x=>x.id===caseId);
+  const chk = c.checks.find(x=>x.key===checkKey);
+  const im = chk.images[imgIndex];
+  document.getElementById('lightbox-img').innerHTML = im.svg;
+  document.getElementById('lightbox-title').textContent = im.label;
+  document.getElementById('lightbox').classList.add('show');
+}
+function closeLightbox(){
+  document.getElementById('lightbox').classList.remove('show');
+}
+function showToast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'), 2200);
+}
+
+function actOnCase(id, action){
+  const c = CASES.find(x=>x.id===id);
+  if(!c) return;
+  if(role==='reviewer'){
+    if(action==='approve'){ c.status='pending_authorization'; c.reviewedBy='Reviewer — you'; showToast('Sent to authorizer for final sign-off'); }
+    if(action==='reject'){ c.status='rejected'; showToast('Application rejected'); }
+    if(action==='escalate'){ c.status='rejected'; showToast('Escalated to manual review team'); }
+  } else {
+    if(action==='approve'){ c.status='approved'; showToast('Tier 3 upgrade applied to account'); }
+    if(action==='reject'){ c.status='rejected'; showToast('Application rejected'); }
+  }
+  selectedId = null;
+  renderQueue();
+  renderMain();
+}
+
+function renderMain(){
+  const main = document.getElementById('main');
+  const list = visibleCases();
+  const c = CASES.find(x=>x.id===selectedId) || list[0];
+  if(!c){
+    main.innerHTML = `<div class="empty">No cases waiting in this queue right now.</div>`;
+    return;
+  }
+  const checksHtml = c.checks.map(chk=>{
+    const isOpen = !!openChecks[chk.key];
+    return `<div class="check ${isOpen?'open':''}">
+      <div class="check-head" onclick="toggleCheck('${chk.key}')">
+        <div>
+          <div class="check-title">${chk.title}</div>
+          <div class="check-title-sub">${chk.sub}</div>
+        </div>
+        <div class="check-right">
+          <span class="conf">${chk.confidence}%</span>
+          <span class="verdict ${chk.verdict}">${verdictLabel(chk.verdict)}</span>
+          <span class="chev">&#9660;</span>
+        </div>
+      </div>
+      <div class="check-detail">
+        ${chk.detail.map(([k,v])=>`<div class="kv-row"><span class="kv-k">${k}</span><span class="kv-v">${v}</span></div>`).join('')}
+        <div class="evidence-note">${chk.note}</div>
+        ${chk.images && chk.images.length ? `<div class="doc-gallery">${chk.images.map((im,i)=>`<div class="doc-thumb" onclick="openLightbox('${c.id}','${chk.key}',${i})">${im.svg}<div class="doc-thumb-label">${im.label}</div></div>`).join('')}</div>` : ''}
+      </div>
+    </div>`;
+  }).join('');
+
+  let actionsHtml = '';
+  if(c.status==='pending_review'){
+    actionsHtml = `<div class="actions">
+      <button class="btn primary" onclick="actOnCase('${c.id}','approve')">Approve and send to authorizer</button>
+      <button class="btn danger" onclick="actOnCase('${c.id}','reject')">Reject application</button>
+      <button class="btn ghost" onclick="actOnCase('${c.id}','escalate')">Escalate to manual review</button>
+    </div>`;
+  } else if(c.status==='pending_authorization'){
+    actionsHtml = `<div class="actions">
+      <button class="btn primary" onclick="actOnCase('${c.id}','approve')">Approve and apply Tier 3 upgrade</button>
+      <button class="btn danger" onclick="actOnCase('${c.id}','reject')">Reject application</button>
+    </div>
+    <div style="margin-top:10px;font-size:12px;color:var(--ink-soft);">Reviewed by ${c.reviewedBy||'reviewer'}. This is the second, independent sign-off before the upgrade is applied.</div>`;
+  }
+
+  main.innerHTML = `
+    <div class="topline">
+      <div>
+        <p class="cust-name">${c.name}</p>
+        <p class="cust-sub">${c.phone} &middot; submitted ${c.submitted}</p>
+      </div>
+      <span class="req-badge">${c.requested}</span>
+    </div>
+    <div class="ai-banner ${c.overall}">
+      <div class="ai-dot ${c.overall}"></div>
+      <div>
+        <div class="ai-banner-title">${overallLabel(c.overall)}</div>
+        <div class="ai-banner-body">${c.overallNote}</div>
+        <div class="ai-banner-time">Checks completed by AI in ${c.aiTime}</div>
+      </div>
+    </div>
+    <div class="checks">${checksHtml}</div>
+    ${actionsHtml}
+  `;
+}
+
+document.getElementById('btn-reviewer').addEventListener('click', ()=>switchRole('reviewer'));
+document.getElementById('btn-authorizer').addEventListener('click', ()=>switchRole('authorizer'));
+
+renderQueue();
+renderMain();
+</script>
+</body>
+</html>
