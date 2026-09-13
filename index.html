@@ -288,6 +288,46 @@ const CASES = [
        note:'BVN and selfie matched cleanly.',
        images:[{label:'Selfie vs BVN record', svg:selfieCompareSVG({sourceLabel:'NIBSS BVN photo', score:0.97})}]}
     ]
+  },
+  {
+    id:'c5', name:'Yusuf Aliyu', phone:'0701 558 9902', requested:'Tier 1 → Tier 3',
+    submitted:'25 min ago', aiTime:'40 sec', status:'pending_review',
+    overall:'risk', overallNote:'Identity document is genuine and matches, but it expired 4 months ago. CBN KYC rules require a currently-valid document for this tier — recommend rejection with a re-upload request rather than manual override.',
+    checks:[
+      {key:'id', title:'Identity document', sub:"Driver's licence", verdict:'risk', confidence:88,
+       detail:[['Document type',"Driver's licence — FRSC"],['Licence number','FRS-••••804'],['Portal checked','FRSC licence verification portal'],['Name match','Yusuf Aliyu — exact match'],['Photo match','Match, 0.94 similarity'],['Expiry','Expired 4 months ago']],
+       note:'The document itself checks out — name, photo, and portal record all match. The AI flags it purely on expiry, which is a policy rule, not a fraud signal.',
+       images:[{label:"Driver's licence", svg:idCardSVG({...SCHEME.license, name:'Yusuf Aliyu', idValue:'FRS-••••804', extraLabel:'Expiry', extraValue:'Expired'})}]},
+      {key:'address', title:'Proof of address', sub:'Electricity bill + agent visit', verdict:'clear', confidence:91,
+       detail:[['Bill type','Kano Electricity Distribution — dated 15 days ago'],['Billing name','Yusuf Aliyu — match'],['Address on bill','12 Zaria Road, Kano'],['Agent visit status','Completed — habitable, occupied']],
+       note:'Bill and agent visit are consistent.',
+       images:[{label:'Electricity bill', svg:billSVG({issuer:'Kano Electricity Distribution', date:'15 days ago', name:'Yusuf Aliyu', address:'12 Zaria Road, Kano', amount:'₦6,700'})},
+               {label:'Agent site visit', svg:agentPhotoSVG({wallColor:'#E0D9C0', roofColor:'#7A5236', consistent:true})}]},
+      {key:'bvn', title:'BVN & selfie match', sub:'NIBSS verification', verdict:'clear', confidence:95,
+       detail:[['BVN provided','••••••••5521'],['Portal checked','NIBSS BVN portal'],['Name on BVN','Yusuf Musa Aliyu'],['Selfie match','0.95 similarity']],
+       note:'BVN and selfie matched cleanly.',
+       images:[{label:'Selfie vs BVN record', svg:selfieCompareSVG({sourceLabel:'NIBSS BVN photo', score:0.95})}]}
+    ]
+  },
+  {
+    id:'c6', name:'Chiamaka Eze', phone:'0814 220 7761', requested:'Tier 1 → Tier 3',
+    submitted:'8 min ago', aiTime:'—', status:'pending_review',
+    overall:'review', overallNote:'The uploaded bill image is too low-resolution for the OCR step to confidently read the address and date fields. AI cannot render a verdict on this check — routed straight to manual reading rather than guessing.',
+    checks:[
+      {key:'id', title:'Identity document', sub:'National ID (NIN)', verdict:'clear', confidence:97,
+       detail:[['Document type','National ID — NIMC'],['NIN provided','••••••8863'],['Portal checked','NIMC verification portal'],['Name match','Chiamaka Eze — exact match'],['Photo match','Match, 0.97 similarity']],
+       note:'NIMC portal returned a verified record with a strong photo match.',
+       images:[{label:'National ID (NIN)', svg:idCardSVG({...SCHEME.nin, name:'Chiamaka Eze', idValue:'••••••8863', extraLabel:'Status', extraValue:'Active'})}]},
+      {key:'address', title:'Proof of address', sub:'Electricity bill + agent visit', verdict:'review', confidence:null,
+       detail:[['Bill type','Unreadable — image too low-resolution'],['OCR confidence','Below threshold, no fields extracted'],['Agent visit status','Completed — habitable, occupied'],['Agent photo vs bill address','Cannot compare — bill text unreadable']],
+       note:'This is a data-quality failure, not a fraud signal: the AI could not extract the issuer, name, address, or date from the bill photo, so it withheld a verdict instead of scoring on incomplete data. Needs either a clearer re-upload or manual reading.',
+       images:[{label:'Electricity bill (low quality)', svg:billSVG({issuer:'— unreadable —', date:'— unreadable —', name:'— unreadable —', address:'— unreadable —', amount:'—'})},
+               {label:'Agent site visit', svg:agentPhotoSVG({wallColor:'#DCD3C3', roofColor:'#7A5236', consistent:true})}]},
+      {key:'bvn', title:'BVN & selfie match', sub:'NIBSS verification', verdict:'clear', confidence:96,
+       detail:[['BVN provided','••••••••9034'],['Portal checked','NIBSS BVN portal'],['Name on BVN','Chiamaka Ngozi Eze'],['Selfie match','0.96 similarity']],
+       note:'BVN and selfie matched cleanly.',
+       images:[{label:'Selfie vs BVN record', svg:selfieCompareSVG({sourceLabel:'NIBSS BVN photo', score:0.96})}]}
+    ]
   }
 ];
 
@@ -399,7 +439,7 @@ function renderMain(){
           <div class="check-title-sub">${chk.sub}</div>
         </div>
         <div class="check-right">
-          <span class="conf">${chk.confidence}%</span>
+          <span class="conf">${chk.confidence!=null ? chk.confidence+'%' : 'No score'}</span>
           <span class="verdict ${chk.verdict}">${verdictLabel(chk.verdict)}</span>
           <span class="chev">&#9660;</span>
         </div>
